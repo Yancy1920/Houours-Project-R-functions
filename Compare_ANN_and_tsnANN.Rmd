@@ -1,0 +1,145 @@
+---
+title: "compare"
+author: "Yingxin Xu"
+date: "2023-12-03"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(astsa,tseries,forecast,strucchange,readr,dplyr,patchwork,pROC,ggplot2,stats)
+```
+
+```{r}
+profile_dir_true <- "C:/Users/Philo/Box Sync/ProvedIT_profiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/5 sec/RD14-0003(020316ADG_5sec)/"
+profile_dir_ANN <- "C:/Users/Philo/Box Sync/Fakeprofiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/RD14-0003(020316ADG_5sec)_fake/prediction_generator_100/"
+profile_dir_ANNnTS <- "C:/Users/Philo/Box Sync/Fakeprofiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/RD14-0003(020316ADG_5sec)_fake_NOISE/prediction_generator_100/"
+
+settings <- list(number_of_dyes = 6,
+                 startScan = 4000,
+                 number_of_scanpoints = 5000,
+                 saturation = 100,
+                 real_and_smooth_dirs = profile_dir_true,
+                 saturation_max = 33000,
+                 fluorescence_column_names = paste("dye", 1:6, sep=""))
+
+source("get_csv_to_subtract.R")
+source("subtract_profiles.R")
+```
+
+```{r}
+true_profiles_n_ANN_profiles <- get_csv_to_subtract(profile_dir_true, profile_dir_ANN,settings)
+res_ANN <- subtract_profiles(true_profiles_n_ANN_profiles$true_profiles,true_profiles_n_ANN_profiles$fake_profiles)
+```
+
+```{r}
+true_profiles_n_TS_profiles <- get_csv_to_subtract(profile_dir_true, profile_dir_ANNnTS,settings)
+res_TS <- subtract_profiles(true_profiles_n_TS_profiles$true_profiles,true_profiles_n_TS_profiles$fake_profiles)
+```
+
+```{r}
+# look at distribution of res
+file_num = 43
+idye = 1
+res_now <- data.frame(diff_ANN <- res_ANN[file_num, idye,],
+                          diff_TS <- res_TS[file_num, idye,])
+```
+
+```{r}
+ggplot(res_now)+
+  geom_histogram(aes(x=diff_ANN,y=..density..),color="#2B9BFB",fill="lightblue")+
+  geom_histogram(aes(x=diff_TS,y=..density..),color="orange",fill="#FFDE59")+
+  geom_density(aes(x=diff_ANN),color="#2B9BFB")+
+  geom_density(aes(x=diff_TS),color="orange")+
+  labs(title = 'Residual distribution plot')+
+  xlab('Residual')+
+  ylab('density')
+```
+
+
+
+```{r}
+mean_ANN <- NULL
+mean_TS <- NULL
+sd_ANN <- NULL
+sd_TS <- NULL
+median_ANN <- NULL
+median_TS <- NULL
+dye <- 3  # change this to switch between 6 dyes
+for(i in 1:dim(res_ANN)[1]){
+  mean_ANN[i] <- mean(res_ANN[i,dye,])
+  mean_TS[i] <- mean(res_TS[i,dye,])
+  sd_ANN[i] <- sd(res_ANN[i,dye,])
+  sd_TS[i] <- sd(res_TS[i,dye,])
+  median_ANN[i] <- median(res_ANN[i,dye,])
+  median_TS[i] <- median(res_TS[i,dye,])
+}
+
+```
+
+```{r}
+# put the results into data frame
+MEAN <- data.frame(ANN = mean_ANN, TS = mean_TS)
+SD <- data.frame(ANN = sd_ANN, TS = sd_TS)
+MEDIAN <- data.frame(ANN = median_ANN, TS = median_TS)
+```
+
+```{r} 
+# Density plot
+ggplot(MEAN)+
+  geom_density(aes(x=ANN),color="#2B9BFB")+
+  geom_density(aes(x=TS),color="orange")+
+  labs(title = 'Mean density plot')+
+  xlab('Mean')+
+  ylab('density')
+
+ggplot(SD)+
+  geom_density(aes(x=ANN),color="#2B9BFB")+
+  geom_density(aes(x=TS),color="orange")+
+  labs(title = 'Standard deviation density plot')+
+  xlab('Standard deviation')+
+  ylab('density')
+
+ggplot(MEDIAN)+
+  geom_density(aes(x=ANN),color="#2B9BFB")+
+  geom_density(aes(x=TS),color="orange")+
+  labs(title = 'Median density plot')+
+  theme_classic()+
+  xlab('Median')+
+  ylab('density')
+  
+
+```
+
+
+
+```{r}
+file_num=44
+idye=3
+qqnorm(res_ANN[file_num,idye,],main="Normal Q-Q plot of residual of fake profiles");qqline(res_ANN[file_num,idye,])
+qqnorm(res_TS[file_num,idye,],main="Normal Q-Q plot of residual after adding noise to smooth");qqline(res_TS[file_num,idye,])
+```
+
+```{r}
+x = 1:5000
+file_num = 15  ## 1 to dim(res_prof1)[1]
+idye = 1  ## 1 to 6
+
+
+ggplot() +
+  theme_classic()+
+  geom_point(aes(x, res_ANN[file_num,idye,]-mean(res_ANN[file_num,idye,])),color='grey') +
+  geom_point(aes(x, res_TS[file_num,idye,]-mean(res_TS[file_num,idye,])),color='#FFDE59') +
+  geom_smooth(aes(x, res_ANN[file_num,idye,]-mean(res_ANN[file_num,idye,])),color='black') +
+  geom_smooth(aes(x, res_TS[file_num,idye,]-mean(res_TS[file_num,idye,])),color='darkorange') +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Scan point", y = "Residuals",title='Residuals vs Fitted plot')+
+  theme(
+    text = element_text(family = "times",size=20)
+  )
+
+```
+

@@ -1,0 +1,88 @@
+---
+title: "add_noise"
+author: "Yingxin Xu"
+date: "2023-11-27"
+output: html_document
+---
+
+这个文件的内容是向smooth profile添加根据统计结果得到的时间序列noise，它的下一步是compare，是文件"Compare_ANN_and_tsnANN.Rmd"。
+
+操作包括：加和smooth and noise，feed into ANN, save result in folder with "noise" in the title.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(astsa,tseries,forecast,strucchange,readr,dplyr,patchwork,pROC,ggplot2,stats)
+```
+
+```{r}
+real_and_smooth_file <- "PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/5 sec/RD14-0003(020316ADG_5sec)/"
+corresponding_fake_file <- "PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/RD14-0003(020316ADG_5sec)_fake_NOISE/prediction_generator_100/"
+settings <- list(number_of_dyes = 6,
+                 startScan = 4000,
+                 number_of_scanpoints = 5000,
+                 saturation = 100,
+                 real_and_smooth_dirs = paste("C:/Users/Philo/Box Sync/ProvedIT_profiles",real_and_smooth_file, sep = "/"),
+                 fake_dirs = paste("C:/Users/Philo/Box Sync/Fakeprofiles",corresponding_fake_file, sep = "/"),
+                 saturation_max = 33000,
+                 fluorescence_column_names = paste("dye", 1:6, sep=""))
+
+source("get_smooth_profiles.R")
+source("add_noise_to_smooth.R")
+```
+
+```{r}
+smooth <- get_smooth_profiles(settings$real_and_smooth_dirs,settings)
+dim(smooth$smooth_profiles)
+# smooth$smooth_profiles
+```
+
+```{r}
+smooth_noise <- add_noise_to_smooth(smooth)
+dim(smooth_noise)
+# smooth_noise
+```
+```{r}
+plot(ts(smooth$smooth_profiles[2,1,]))
+plot(ts(smooth_noise[2,1,]))
+```
+
+# run ANN
+
+```{r}
+#build the tensorflow model
+source('build_profile_generator.R')
+profile_generator <- build_profile_generator(settings)
+
+#load training source script
+source('Profile_generator_pre_training.R')
+number_epochs <- 500
+save_profile_images <- TRUE
+save_profile_csvs <- TRUE
+train_with_initial_sample_weights <- TRUE
+
+#creates the training and target data
+source('create_generator_pretrain_training_data.R')
+source('baseline_raw_profile_simple.R')
+profile_generator_training_data <- create_generator_pretrain_training_data(settings)
+
+profile_generator_training_data_noise <- list(input_profiles = smooth_noise,
+              target_profiles = profile_generator_training_data$target_profiles,
+              input_paths = profile_generator_training_data$input_paths,
+              target_paths = profile_generator_training_data$target_paths)
+
+#carry out the generator pre-training
+profile_generator <- profile_generator_pre_training(settings,
+                                                    profile_generator,
+                                                    number_epochs,
+                                                    save_profile_images,
+                                                    save_profile_csvs,
+                                                    train_with_initial_sample_weights,
+                                                    profile_generator_training_data_noise)
+
+
+```
+

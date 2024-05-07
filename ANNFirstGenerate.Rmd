@@ -1,0 +1,72 @@
+---
+title: "BasicANN"
+author: "Yingxin Xu"
+date: "2024-02-10"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# #settings that are carried throughout the analysis
+# install.packages('pacman')
+# #pacman::p_load(tensorflow,keras,tidyverse,generics)
+# library(reticulate)
+# #检查您的系统是否安装过Python，安装过为TRUE
+# py_available()
+# #选择python版本
+# Sys.setenv(RETICULATE_PYTHON = "D:/Anaconda/anaconda3/envs/r-tensorflow/python.exe")
+# RETICULATE_PYTHON = "D:/Anaconda/anaconda3/envs/r-tensorflow/python.exe"
+# use_python("D:/Anaconda/anaconda3/envs/r-tensorflow/python.exe")
+# 
+# reticulate::py_config()
+# library(tensorflow)
+# install_tensorflow()
+```
+
+```{r}
+real_and_smooth_file <- "PROVEDIt_1-Person Profiles_3500 15sec_GF29cycles/15sec/RD14-0003(011516ADG_15sec)/"
+corresponding_fake_file <- "PROVEDIt_1-Person Profiles_3500 15sec_GF29cycles/RD14-0003(011516ADG_15sec)_fake/prediction_generator_100/"
+settings <- list(number_of_dyes = 6,
+                 startScan = 4000,
+                 number_of_scanpoints = 5000,
+                 saturation = 100,
+                 real_and_smooth_dirs = paste("C:/Users/Philo/Box Sync/ProvedIT_profiles",real_and_smooth_file, sep = "/"),
+                 fake_dirs = paste("C:/Users/Philo/Box Sync/Fakeprofiles",corresponding_fake_file, sep = "/"),
+                 saturation_max = 33000,
+                 fluorescence_column_names = paste("dye", 1:6, sep=""))
+
+
+#build the tensorflow model
+source('build_profile_generator.R')
+profile_generator <- build_profile_generator(settings)
+```
+
+```{r}
+#load training source script
+source('Profile_generator_pre_training.R')
+number_epochs <- 100
+save_profile_images <- TRUE
+save_profile_csvs <- TRUE
+train_with_initial_sample_weights <- TRUE
+
+#creates the training and target data
+source('create_generator_pretrain_training_data.R')
+source('baseline_raw_profile_simple.R')
+profile_generator_training_data <- create_generator_pretrain_training_data(settings)
+```
+
+```{r}
+#carry out the generator pre-training
+profile_generator <- profile_generator_pre_training(settings,
+                                                    profile_generator,
+                                                    number_epochs,
+                                                    save_profile_images,
+                                                    save_profile_csvs,
+                                                    train_with_initial_sample_weights,
+                                                    profile_generator_training_data)
+
+```
+

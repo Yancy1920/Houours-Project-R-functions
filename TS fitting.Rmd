@@ -1,0 +1,436 @@
+---
+title: "TimeSeries RD14-0003(021016ADG_6sec)"
+author: "Yingxin Xu"
+date: "2023-10-07"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(astsa,tseries,forecast,strucchange,readr,dplyr,patchwork,pROC,ggplot2,stats)
+```
+
+## TimeSeries part: 使用时间序列来模拟DNA profile中的noise
+
+自相关不收敛，偏自相关快速收敛，两阶后收敛，定阶2，选用arma（2,0） 偏相关截尾用AR，自相关截尾用MA，两个都拖尾用ARMA，根据单整阶数确定I，得出ARIMA
+
+```{r}
+profile_dir_true <- "C:/Users/Philo/Box Sync/ProvedIT_profiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/5 sec/RD14-0003(021016ADG_5sec)/"
+profile_dir_fake <- "C:/Users/Philo/Box Sync/Fakeprofiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/RD14-0003(021016ADG_5sec)_fake/prediction_generator_100/"
+settings <- list(number_of_dyes = 6,
+                 startScan = 4000,
+                 number_of_scanpoints = 5000,
+                 saturation = 100,
+                 real_and_smooth_dirs = "C:/Users/Philo/Box Sync/ProvedIT_profiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/5 sec/RD14-0003(021016ADG_5sec)/",
+                 saturation_max = 33000,
+                 fluorescence_column_names = paste("dye", 1:6, sep=""))
+
+source("get_csv_to_subtract.R")
+source("subtract_profiles.R")
+```
+
+```{r}
+true_and_fake_profiles <- get_csv_to_subtract(profile_dir_true, profile_dir_fake,settings)
+noises <- subtract_profiles(true_and_fake_profiles$true_profiles,true_and_fake_profiles$fake_profiles)
+```
+
+```{r}
+noise_now_ts <- array(0, dim = c(5000,6))
+noise_test <- t(noises[11,,]) # change this num to switch between files
+for (i in 1:6){
+  noise_now_ts[,i] <- ts(noise_test[,i])
+}
+
+```
+
+```{r}
+dye1 <- ts(noise_now_ts[,1],start = 4000)
+dye2 <- ts(noise_now_ts[,2],start = 4000)
+dye3 <- ts(noise_now_ts[,3],start = 4000)
+dye4 <- ts(noise_now_ts[,4],start = 4000)
+dye5 <- ts(noise_now_ts[,5],start = 4000)
+dye6 <- ts(noise_now_ts[,6],start = 4000)
+```
+
+# dye 1
+
+```{r}
+plot(dye1)
+acf(dye1)
+pacf(dye1)
+adf.test(dye1)# if larger than 0.05, do diff
+```
+
+```{r}
+dye1_diff <- diff(dye1)
+plot(dye1_diff)
+acf(dye1_diff)
+pacf(dye1_diff)
+```
+
+```{r}
+##### TRY FILTER
+z_scores <- (dye1 - mean(dye1)) / sd(dye1)
+outlier_indices <- which(abs(z_scores) > 5) 
+dye1_filtered <- ts(dye1[-outlier_indices],start = 4000)
+acf(dye1_filtered)
+pacf(dye1_filtered)
+plot(dye1_filtered,type = "l")
+```
+
+```{r}
+# if no outlier, run this
+dye1_filtered <- dye1
+```
+
+```{r}
+# grid search
+models <- NULL
+for(p in 0:5){
+  for(q in 0:5){
+    aic = arima(dye1_filtered,order=c(p,1,q))$aic
+    models <- rbind(models,c(p,q,aic))
+   } 
+}
+top3 <- order(models[,3])[1:3]
+models[top3,]
+# models
+```
+
+```{r}
+# fit model
+dye1_fit1 <- arima(dye1_filtered,order = c(2,0,3))
+dye1_fit2 <- arima(dye1_filtered,order = c(3,0,2))
+dye1_fit3 <- arima(dye1_filtered,order = c(1,1,2))
+
+dye1_fit1
+dye1_fit2
+dye1_fit3
+
+sarima(dye1_filtered,2,0,3)
+sarima(dye1_filtered,3,0,2)
+sarima(dye1_filtered,1,1,2)
+```
+
+```{r}
+dye1.402 <- arima(dye1_filtered,order = c(1,1,2))
+res <- residuals(dye1.402)
+spectrum(res)
+cpgram(res)
+```
+
+# dye 2
+
+```{r}
+plot(dye2)
+acf(dye2)
+pacf(dye2)
+adf.test(dye2)# if larger than 0.05, do diff
+```
+
+```{r}
+dye2_diff <- diff(dye2)
+plot(dye2_diff)
+acf(dye2_diff)
+pacf(dye2_diff)
+```
+
+```{r}
+##### TRY FILTER
+z_scores <- (dye2 - mean(dye2)) / sd(dye2)
+outlier_indices <- which(abs(z_scores) > 5) 
+dye2_filtered <- ts(dye2[-outlier_indices],start = 4000)
+acf(dye2_filtered)
+pacf(dye2_filtered)
+plot(dye2_filtered,type = "l")
+adf.test(dye2_filtered)
+```
+
+```{r}
+dye2_filtered <- dye2
+```
+
+```{r}
+# grid search
+models <- NULL
+for(p in 0:5){
+  for(q in 0:5){
+    aic = arima(dye2_filtered,order=c(p,1,q))$aic
+    models <- rbind(models,c(p,q,aic))
+   } 
+}
+top3 <- order(models[,3])[1:3]
+models[top3,]
+```
+
+```{r}
+# fit model
+dye2_fit1 <- arima(dye2_filtered,order = c(2,0,4))
+dye2_fit2 <- arima(dye2_filtered,order = c(1,1,4))
+dye2_fit3 <- arima(dye2_filtered,order = c(2,1,3))
+
+dye2_fit1
+dye2_fit2
+dye2_fit3
+
+sarima(dye2_filtered, 1,1,3)
+```
+
+```{r}
+dye2.302 <- arima(dye2_filtered,order = c(5,0,1))
+res.302 <- residuals(dye2.302)
+spectrum(res.302)
+cpgram(res.302)
+```
+
+# dye 3
+
+```{r}
+plot(dye3)
+acf(dye3)
+pacf(dye3)
+adf.test(dye3)# if larger than 0.05, do diff
+```
+
+```{r}
+dye3_diff <- diff(dye3)
+plot(dye3_diff)
+acf(dye3_diff)
+pacf(dye3_diff)
+```
+
+```{r}
+##### TRY FILTER
+z_scores <- (dye3 - mean(dye3)) / sd(dye3)
+outlier_indices <- which(abs(z_scores) > 5) 
+dye3_filtered <- ts(dye3[-outlier_indices],start = 4000)
+acf(dye3_filtered)
+pacf(dye3_filtered)
+plot(dye3_filtered,type = "l")
+adf.test(dye3_filtered)
+```
+```{r}
+dye3_filtered <- dye3
+```
+
+```{r}
+# grid search
+models <- NULL
+for(p in 0:5){
+  for(q in 0:5){
+    aic = arima(dye3_filtered,order=c(p,1,q))$aic
+    models <- rbind(models,c(p,q,aic))
+   } 
+}
+top3 <- order(models[,3])[1:3]
+models[top3,]
+```
+
+```{r}
+# fit model
+dye3_fit1 <- arima(dye3_filtered,order = c(3,0,4))
+dye3_fit2 <- arima(dye3_filtered,order = c(3,1,2))
+dye3_fit3 <- arima(dye3_filtered,order = c(4,1,1))
+
+dye3_fit1
+dye3_fit2
+dye3_fit3
+
+sarima(dye3_filtered, 1,1,2)
+```
+
+```{r}
+dye3.402 <- arima(dye3_filtered,order = c(3,0,4))
+res.402 <- residuals(dye3.402)
+spectrum(res.402)
+cpgram(res.402)
+```
+
+# dye 4
+
+```{r}
+plot(dye4)
+acf(dye4)
+pacf(dye4)
+adf.test(dye4)# if larger than 0.05, do diff
+```
+
+```{r}
+dye4_diff <- diff(dye4)
+plot(dye4_diff)
+acf(dye4_diff)
+pacf(dye4_diff)
+```
+
+```{r}
+##### TRY FILTER
+z_scores <- (dye4 - mean(dye4)) / sd(dye4)
+outlier_indices <- which(abs(z_scores) > 5) 
+dye4_filtered <- ts(dye4[-outlier_indices],start = 4000)
+acf(dye4_filtered)
+pacf(dye4_filtered)
+plot(dye4_filtered,type = "l")
+adf.test(dye4_filtered)
+```
+
+```{r}
+dye4_filtered <- dye4
+```
+
+```{r}
+# grid search
+models <- NULL
+for(p in 0:5){
+  for(q in 0:5){
+    aic = arima(dye4_filtered,order=c(p,1,q))$aic
+    models <- rbind(models,c(p,q,aic))
+   } 
+}
+top3 <- order(models[,3])[1:3]
+models[top3,]
+```
+
+```{r}
+# fit model
+dye4_fit1 <- arima(dye4_filtered,order = c(4,0,4))
+dye4_fit2 <- arima(dye4_filtered,order = c(3,1,3))
+dye4_fit3 <- arima(dye4_filtered,order = c(3,1,5))
+
+dye4_fit1
+dye4_fit2
+dye4_fit3
+
+sarima(dye4_filtered, 2,1,2)
+```
+
+```{r}
+dye4.204 <- arima(dye4_filtered,order = c(2,0,2))
+res.204 <- residuals(dye4.204)
+spectrum(res.204)
+cpgram(res.204)
+```
+
+# dye 5
+
+```{r}
+plot(dye5)
+acf(dye5)
+pacf(dye5)
+adf.test(dye5)# if larger than 0.05, do diff
+```
+
+```{r}
+##### TRY FILTER
+z_scores <- (dye5 - mean(dye5)) / sd(dye5)
+outlier_indices <- which(abs(z_scores) > 5) 
+dye5_filtered <- ts(dye5[-outlier_indices],start = 4000)
+acf(dye5_filtered)
+pacf(dye5_filtered)
+plot(dye5_filtered,type = "l")
+adf.test(dye5_filtered)
+```
+
+```{r}
+dye5_filtered <- dye5
+```
+
+```{r}
+# grid search
+models <- NULL
+for(p in 0:5){
+  for(q in 0:5){
+    aic = arima(dye5_filtered,order=c(p,1,q))$aic
+    models <- rbind(models,c(p,q,aic))
+   } 
+}
+top3 <- order(models[,3])[1:3]
+models[top3,]
+```
+
+```{r}
+# fit model
+dye5_fit1 <- arima(dye5_filtered,order = c(4,0,2))
+dye5_fit2 <- arima(dye5_filtered,order = c(3,0,2))
+dye5_fit3 <- arima(dye5_filtered,order = c(2,1,5))
+
+dye5_fit1
+dye5_fit2
+dye5_fit3
+
+sarima(dye5_filtered, 3,0,4)
+```
+
+```{r}
+dye5.302 <- arima(dye5_filtered,order = c(2,1,5))
+res.302 <- residuals(dye5.302)
+spectrum(res.302)
+cpgram(res.302)
+```
+
+# dye 6
+
+```{r}
+plot(dye6)
+acf(dye6)
+pacf(dye6)
+adf.test(dye6)# if larger than 0.05, do diff
+```
+
+```{r}
+dye6_diff <- diff(dye6)
+plot(dye6_diff)
+acf(dye6_diff)
+pacf(dye6_diff)
+```
+
+```{r}
+##### TRY FILTER
+z_scores <- (dye6 - mean(dye6)) / sd(dye6)
+outlier_indices <- which(abs(z_scores) > 5) 
+dye6_filtered <- ts(dye6[-outlier_indices],start = 4000)
+acf(dye6_filtered)
+pacf(dye6_filtered)
+plot(dye6_filtered,type = "l")
+adf.test(dye6_filtered)
+```
+
+```{r}
+dye6_filtered <- dye6
+```
+
+```{r}
+# grid search
+models <- NULL
+for(p in 0:5){
+  for(q in 0:5){
+    aic = arima(dye6_filtered,order=c(p,1,q))$aic
+    models <- rbind(models,c(p,q,aic))
+   } 
+}
+top3 <- order(models[,3])[1:3]
+models[top3,]
+```
+
+
+```{r}
+# fit model
+dye6_fit1 <- arima(dye6_filtered,order = c(5,0,3))
+dye6_fit2 <- arima(dye6_filtered,order = c(4,1,3))
+dye6_fit3 <- arima(dye6_filtered,order = c(1,1,2))
+
+dye6_fit1
+dye6_fit2
+dye6_fit3
+
+sarima(dye6_filtered, 1,1,3)
+```
+
+```{r}
+dye6.402 <- arima(dye6_filtered,order = c(5,0,3))
+res.402 <- residuals(dye6.402)
+spectrum(res.402)
+cpgram(res.402)
+```

@@ -1,0 +1,235 @@
+---
+title: "RMSE compare"
+author: "Yingxin Xu"
+date: "2024-03-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(astsa,tseries,forecast,strucchange,readr,dplyr,patchwork,pROC,ggplot2,stats,sysfonts,showtext)
+```
+
+```{r}
+# go through all profiles in one folder
+temp <- list.dirs(path = "C:/Users/Philo/Box Sync/ProvedIT_profiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/5 sec/")
+temp
+```
+
+```{r}
+profile_dir_true <- "C:/Users/Philo/Box Sync/ProvedIT_profiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/5 sec/RD14-0003(020316ADG_5sec)/"
+profile_dir_ANN <- "C:/Users/Philo/Box Sync/Fakeprofiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/RD14-0003(020316ADG_5sec)_fake/prediction_generator_100/"
+profile_dir_ANNnTS <- "C:/Users/Philo/Box Sync/Fakeprofiles/PROVEDIt_2-5-Person Profiles_3500 5sec_GF29cycles/RD14-0003(020316ADG_5sec)_fake_NOISE/prediction_generator_100/"
+
+settings <- list(number_of_dyes = 6,
+                 startScan = 4000,
+                 number_of_scanpoints = 5000,
+                 saturation = 100,
+                 real_and_smooth_dirs = profile_dir_true,
+                 saturation_max = 33000,
+                 fluorescence_column_names = paste("dye", 1:6, sep=""))
+
+source("get_csv_to_subtract.R")
+source("subtract_profiles.R")
+source("get_generated_profiles.R")
+source("add_noise_to_gen.R")
+```
+
+get residuals
+```{r}
+true_profiles_n_ANN_profiles <- get_csv_to_subtract(profile_dir_true, profile_dir_ANN,settings)
+true_profiles <- true_profiles_n_ANN_profiles$true_profiles
+res_ANN <- subtract_profiles(true_profiles,true_profiles_n_ANN_profiles$fake_profiles)
+```
+
+```{r}
+true_profiles_n_TS_profiles <- get_csv_to_subtract(profile_dir_true, profile_dir_ANNnTS,settings)
+res_TSnANN <- subtract_profiles(true_profiles,true_profiles_n_TS_profiles$fake_profiles)
+```
+
+```{r}
+gen <- get_generated_profiles(profile_dir_ANN,settings) # smooth$smooth_profiles
+gen_plus_noise <- add_noise_to_gen(gen) # smooth_noise
+res_ANNnTS <- subtract_profiles(true_profiles,gen_plus_noise)
+```
+
+```{r}
+font_add(
+  family = "times",
+  regular = here::here(
+    "Times New Roman.ttf"
+  )
+)
+```
+
+```{r}
+res <- as.data.frame(t(res_ANN[1,,]))
+showtext_auto()
+ggplot(res)+
+    geom_line(aes(x=1:5000,y=res[,1]))+
+    xlab("Scan point")+
+    ylab("Residuals")+
+  theme_bw()+
+  ggtitle("Residuals plot: Dye 1")+
+  theme(
+    text = element_text(family = "times",size=20)
+  )
+```
+
+
+```{r}
+#RMSE
+idye <- 6
+r2_ANN <- res_ANN^2
+r2_TSnANN <- res_TSnANN^2
+r2_ANNnTS <- res_ANNnTS^2
+n_file <- dim(r2_ANN)[1]
+
+mse_ANN <- NULL
+rmse_ANN <- NULL
+mse_TSnANN <- NULL
+rmse_TSnANN <- NULL
+mse_ANNnTS <- NULL
+rmse_ANNnTS <- NULL
+mean_ANN <- NULL
+sd_ANN <- NULL
+median_ANN <- NULL
+mean_TSnANN <- NULL
+sd_TSnANN <- NULL
+median_TSnANN <- NULL
+mean_ANNnTS <- NULL
+sd_ANNnTS <- NULL
+median_ANNnTS <- NULL
+
+for(ifile in 1:n_file){
+  mean_ANN[ifile] <- mean(res_ANN[ifile,idye,])
+  mean_TSnANN[ifile] <- mean(res_TSnANN[ifile,idye,])
+  mean_ANNnTS[ifile] <- mean(res_ANNnTS[ifile,idye,])
+  sd_ANN[ifile] <- sd(res_ANN[ifile,idye,])
+  sd_TSnANN[ifile] <- sd(res_TSnANN[ifile,idye,])
+  sd_ANNnTS[ifile] <- sd(res_ANNnTS[ifile,idye,])
+  median_ANN[ifile] <- median(res_ANN[ifile,idye,])
+  median_TSnANN[ifile] <- median(res_TSnANN[ifile,idye,])
+  median_ANNnTS[ifile] <- median(res_ANNnTS[ifile,idye,])
+}
+
+
+for(ifile in 1:n_file){
+  mse_ANN[ifile] <- mean(r2_ANN[ifile,idye,])
+  rmse_ANN[ifile] <- sqrt(mse_ANN[ifile])
+  mse_TSnANN[ifile] <- mean(r2_TSnANN[ifile,idye,])
+  rmse_TSnANN[ifile] <- sqrt(mse_TSnANN[ifile])
+  mse_ANNnTS[ifile] <- mean(r2_ANNnTS[ifile,idye,])
+  rmse_ANNnTS[ifile] <- sqrt(mse_ANNnTS[ifile])
+}
+
+RMSE <- data.frame(ANN = rmse_ANN, TSnANN = rmse_TSnANN, ANNnTS = rmse_ANNnTS)
+MEAN <- data.frame(ANN = mean_ANN, TSnANN = mean_TSnANN, ANNnTS = mean_ANNnTS)
+SD <- data.frame(ANN = sd_ANN, TSnANN = sd_TSnANN, ANNnTS = sd_ANNnTS)
+MEDIAN <- data.frame(ANN = median_ANN, TSnANN = median_TSnANN, ANNnTS = median_ANNnTS)
+```
+
+```{r}
+RMSE <- data.frame(value = c(rmse_ANN,rmse_TSnANN,rmse_ANNnTS), model = c(rep("ANN",length(rmse_ANN)),rep("TSnANN",length(rmse_TSnANN)),rep("ANNnTS",length(rmse_ANNnTS))))
+
+MEAN <- data.frame(value = c(mean_ANN,mean_TSnANN,mean_ANNnTS), model = c(rep("ANN",length(mean_ANN)),rep("TSnANN",length(mean_TSnANN)),rep("ANNnTS",length(mean_ANNnTS))))
+
+SD <- data.frame(value = c(sd_ANN,sd_TSnANN,sd_ANNnTS), model = c(rep("ANN",length(sd_ANN)),rep("TSnANN",length(sd_TSnANN)),rep("ANNnTS",length(sd_ANNnTS))))
+
+MEDIAN <- data.frame(value = c(median_ANN,median_TSnANN,median_ANNnTS), model = c(rep("ANN",length(median_ANN)),rep("TSnANN",length(median_TSnANN)),rep("ANNnTS",length(median_ANNnTS))))
+```
+
+
+```{r}
+
+ggplot(RMSE, aes(x=value,color=model), group = model)+
+  stat_density(aes(color = model), geom = "line", position = "identity")+
+  labs(title = 'RMSE(Root Mean Square Error) density plot')+
+  scale_color_manual(name="Models",values=c(ANN="black",ANNnTS="orange",TSnANN="#2B9BFB"),labels=c('ANN','ANN+TS','TS+ANN'))+
+  theme_classic()+
+  xlab('RMSE')+
+  ylab('Density')+
+    theme(
+    text = element_text(family = "times",size=20)
+  )
+
+
+ggplot(MEAN, aes(x=value,color=model), group = model)+
+  stat_density(aes(color = model), geom = "line", position = "identity")+
+  scale_color_manual(name="Models",values=c(ANN="black",ANNnTS="orange",TSnANN="#2B9BFB"),labels=c('ANN','ANN+TS','TS+ANN'))+
+  labs(title = 'Mean density plot')+
+  theme_classic()+
+  xlab('Mean')+
+  ylab('Density')+
+    theme(
+    text = element_text(family = "times",size=20)
+  )
+
+ggplot(SD, aes(x=value,color=model), group = model)+
+  stat_density(aes(color = model), geom = "line", position = "identity")+
+  scale_color_manual(name="Models",values=c(ANN="black",ANNnTS="orange",TSnANN="#2B9BFB"),labels=c('ANN','ANN+TS','TS+ANN'))+
+  labs(title = 'Standard deviation density plot')+
+  theme_classic()+
+  xlab('Standard deviation')+
+  ylab('Density')+
+    theme(
+    text = element_text(family = "times",size=20)
+  )
+
+
+ggplot(MEDIAN, aes(x=value,color=model), group = model)+
+  stat_density(aes(color = model), geom = "line", position = "identity")+
+  scale_color_manual(name="Models",values=c(ANN="black",ANNnTS="orange",TSnANN="#2B9BFB"),labels=c('ANN','ANN+TS','TS+ANN'))+
+  labs(title = 'Median density plot')+
+  theme_classic()+
+  xlab('Median')+
+  ylab('Density')+  
+  theme(
+    text = element_text(family = "times",size=20)
+  )
+```
+
+```{r}
+file_num = 39  ## 1 to dim(res_prof1)[1]
+idye = 1  ## 1 to 6
+rsft_ANN <- res_ANN[file_num,idye,]-mean(res_ANN[file_num,idye,])
+rsft_TSnANN <- res_TS[file_num,idye,]-mean(res_TS[file_num,idye,])
+rsft <- data.frame(num=rep(1:5000,2),value = c(rsft_ANN,rsft_TSnANN), model = c(rep("ANN",length(rsft_ANN)),rep("TSnANN",length(rsft_TSnANN))),s_model=c(rep("s_ANN",length(rsft_ANN)),rep("s_TSnANN",length(rsft_TSnANN))))
+  
+ggplot() +
+  theme_classic()+
+  geom_point(aes(x=rep(1:5000,2),y=rsft[1:10000,]$value,color=rsft[1:10000,]$model))+
+  geom_smooth(aes(x=rep(1:5000,2),y=rsft[1:10000,]$value,color=rsft[1:10000,]$s_model))+
+  scale_color_manual(name="Models",values=c(ANN="grey",TSnANN=" lightskyblue",s_ANN="black",s_TSnANN="#2B9BFB"),labels=c('ANN','ANN','TS+ANN','TS+ANN'))+
+  scale_fill_discrete(breaks=c('ANN','ANN','TS+ANN','TS+ANN'))+
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Scan point", y = "Residuals",title='Residuals vs Fitted plot')+
+  theme(
+    text = element_text(family = "times",size=20)
+  )
+
+```
+
+```{r}
+file_num = 39  ## 1 to dim(res_prof1)[1]
+idye = 1  ## 1 to 6
+rsft_ANN <- res_ANN[file_num,idye,]-mean(res_ANN[file_num,idye,])
+rsft_TSnANN <- res_TS[file_num,idye,]-mean(res_TS[file_num,idye,])
+rsft <- data.frame(num=rep(1:5000,2),value = c(rsft_ANN,rsft_TSnANN), model = c(rep("ANN",length(rsft_ANN)),rep("TSnANN",length(rsft_TSnANN))),s_model=c(rep("s_ANN",length(rsft_ANN)),rep("s_TSnANN",length(rsft_TSnANN))))
+  
+ggplot() +
+  theme_classic()+
+  geom_point(aes(x=rep(1:5000,2),y=rsft[1:10000,]$value,color=rsft[1:10000,]$model))+
+  geom_smooth(aes(x=rep(1:5000,2),y=rsft[1:10000,]$value,color=rsft[1:10000,]$s_model))+
+  scale_color_manual(name="Models",values=c(ANN="grey",TSnANN=" lightskyblue",s_ANN="black",s_TSnANN="#2B9BFB"),labels=c('ANN','ANN','TS+ANN','TS+ANN'))+
+  scale_fill_discrete(breaks=c('ANN','ANN','TS+ANN','TS+ANN'))+
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "Scan point", y = "Residuals",title='Residuals vs Fitted plot')+
+  theme(
+    text = element_text(family = "times",size=20)
+  )
+```
+

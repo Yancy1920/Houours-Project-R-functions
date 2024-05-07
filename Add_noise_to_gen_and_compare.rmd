@@ -1,0 +1,146 @@
+---
+title: "Add noise after ANN"
+author: "Yingxin Xu"
+date: "2024-01-08"
+output: html_document
+---
+
+这个文件的内容是向已经由ANN生成的文件上添加时间序列noise，并与单纯的ANN生成结果进行比较
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+pacman::p_load(astsa,tseries,forecast,strucchange,readr,dplyr,patchwork,pROC,ggplot2,stats)
+```
+
+```{r}
+# enter your file here
+true_file <- "PROVEDIt_1-Person Profiles_3500 5sec_GF29cycles/5_sec/RD14-0003(011216ADG_5sec)/"
+
+corresponding_fake_file <- "PROVEDIt_1-Person Profiles_3500 5sec_GF29cycles/RD14-0003(011216ADG_5sec)_fake/prediction_generator_100/"
+
+profile_dir_fake <- paste("C:/Users/Philo/Box Sync/Fakeprofiles", corresponding_fake_file, sep="/")
+profile_dir_true <- paste("C:/Users/Philo/Box Sync/ProvedIT_profiles", true_file, sep="/")
+settings <- list(number_of_dyes = 6,
+                 startScan = 4000,
+                 number_of_scanpoints = 5000,
+                 saturation = 100,
+                 real_and_smooth_dirs = profile_dir_fake, # not real and smooth now, but fake generated profiles
+                 saturation_max = 33000,
+                 fluorescence_column_names = paste("dye", 1:6, sep=""))
+
+source("get_generated_profiles.R")
+source("add_noise_to_gen.R")
+```
+
+```{r}
+gen <- get_generated_profiles(profile_dir_fake,settings)
+dim(gen$gen_profiles)
+# smooth$smooth_profiles
+```
+
+```{r}
+gen_plus_noise <- add_noise_to_gen(gen)
+dim(gen_plus_noise)
+# smooth_noise
+```
+
+```{r}
+plot(ts(gen$gen_profiles[1,1,]))
+plot(ts(gen_plus_noise[1,1,]))
+```
+
+
+################ Compare ###################
+
+set the generated profiles to be prof_1
+the generated + noise profiles to be prof_2
+
+```{r}
+source("get_csv_to_subtract.R")
+source("subtract_profiles.R")
+```
+
+```{r}
+true_and_gen_profiles <- get_csv_to_subtract(profile_dir_true, profile_dir_fake,settings)
+true_profiles <- true_and_gen_profiles$true_profiles
+res_prof1 <- subtract_profiles(true_profiles,true_and_gen_profiles$fake_profiles)
+```
+
+```{r}
+dim(true_profiles)
+res_prof2 <- subtract_profiles(true_profiles,gen_plus_noise)
+```
+
+```{r}
+dim(res_prof1)
+dim(res_prof2)
+```
+
+```{r}
+mean_prof1 <- matrix(0,dim(res_prof1)[1],6)
+mean_prof2 <- matrix(0,dim(res_prof1)[1],6)
+sd_prof1 <- matrix(0,dim(res_prof1)[1],6)
+sd_prof2 <- matrix(0,dim(res_prof1)[1],6)
+for(i in 1:dim(res_prof1)[1]){
+  for(idye in 1:6){
+    mean_prof1[i,idye] <- mean(res_prof1[i,idye,])
+    mean_prof2[i,idye] <- mean(res_prof2[i,idye,])
+    sd_prof1[i,idye] <- sd(res_prof1[i,idye,])
+    sd_prof2[i,idye] <- sd(res_prof2[i,idye,])
+  }
+}
+
+```
+
+
+```{r}
+idye <- 3
+ggplot()+
+  geom_line(aes(1:dim(res_prof1)[1], mean_prof1[,idye]),color='blue')+
+  geom_line(aes(1:dim(res_prof2)[1], mean_prof2[,idye]),color='red')+
+    ggtitle("Mean plot")+
+  ylab("residual mean")+
+  xlab("file number")
+```
+```{r}
+idye <- 6
+ggplot()+
+  geom_line(aes(1:dim(res_prof1)[1], sd_prof1[,idye]),color='blue')+
+  geom_line(aes(1:dim(res_prof1)[1], sd_prof2[,idye]),color='red')+
+    ggtitle("Standard deviation plot")+
+  ylab("residual sd")+
+  xlab("file number")
+```
+
+```{r}
+mean(res_prof2[11,1,])
+```
+
+
+```{r}
+file_num <- 46
+idye <- 5
+qqnorm(res_prof1[file_num,idye,],main="Normal Q-Q plot of residual of fake profiles");qqline(res_prof1[file_num,idye,])
+qqnorm(res_prof2[file_num,idye,],,main="Normal Q-Q plot of residual of fake profiles+noise");qqline(res_prof2[file_num,idye,])
+# some of them are slightly improved
+```
+
+```{r}
+x = 1:5000
+iprof = 25  ## 1 to dim(res_prof1)[1]
+idye = 3 ## 1 to 6
+
+ggplot() +
+  geom_point(aes(x, res_prof1[iprof,idye,]-mean(res_prof1[iprof,idye,])),color='#66ccff') +
+  geom_point(aes(x, res_prof2[iprof,idye,]-mean(res_prof2[iprof,idye,])),color='pink') +
+  geom_smooth(aes(x, res_prof1[iprof,idye,]-mean(res_prof1[iprof,idye,])),color='darkblue')+
+  geom_smooth(aes(x, res_prof2[iprof,idye,]-mean(res_prof2[iprof,idye,])),color='red') +
+  geom_hline(yintercept = 0, linetype = "dashed") +
+  labs(x = "x", y = "Residuals",title='residuals vs fitted plot')  # not better
+
+```
+
+
+
