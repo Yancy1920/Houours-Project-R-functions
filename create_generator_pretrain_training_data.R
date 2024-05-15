@@ -1,13 +1,13 @@
 create_generator_pretrain_training_data <- function(settings){
                   
   profile_dirs <- settings$real_and_smooth_dirs
-  number_of_directories <- length(profile_dirs) # 目录数
+  number_of_directories <- length(profile_dirs)
   
   input_profile_paths <- NULL
   target_profiles_paths <- NULL
   
   for (iDir in 1:number_of_directories){
-    sampleNames <- list.files(path = profile_dirs[iDir], pattern="\\.csv") # 取出该目录下的所有csv文件
+    sampleNames <- list.files(path = profile_dirs[iDir], pattern="\\.csv")
     NoOfSamples <- length(sampleNames)
     
     #the samples with "smooth" in the title
@@ -28,18 +28,18 @@ create_generator_pretrain_training_data <- function(settings){
   }
   
   
-  number_sample_with_input_and_output <- length(input_profile_paths) #83
+  number_sample_with_input_and_output <- length(input_profile_paths)
   #the number of dyes 
   number_of_dyes <- settings$number_of_dyes
   #the starting scan point
-  startScan <- settings$startScan # 4000
+  startScan <- settings$startScan 
   #the number of scan points to be trained / generated
-  number_of_scanpoints <- settings$number_of_scanpoints # 5000
+  number_of_scanpoints <- settings$number_of_scanpoints 
   #the end scan point
   endScan <- startScan + number_of_scanpoints - 1 #need to minus 1 so that startScan:endScan gives number_of_scanpoints data points
   #now go through and read in files to create input and target arrays
-  input_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) # 83*6*5000
-  target_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) # 83*6*5000
+  input_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) 
+  target_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) 
   for (iProfile in 1:number_sample_with_input_and_output){
     #loads the smoothed (input) profile
     smoothed_profile <- read.csv(file = input_profile_paths[iProfile], header = TRUE, stringsAsFactors = FALSE)
@@ -54,7 +54,7 @@ create_generator_pretrain_training_data <- function(settings){
   }
   # The above steps end up with input_profiles to store smoothed data and target_profiles for non-smoothed data
   
-  #the final step is to apply the saturation threshold （饱和度阈值）
+  #the final step is to apply the saturation threshold 
   saturation <- settings$saturation 
   return(list(input_profiles = input_profiles/saturation,
               target_profiles = target_profiles/saturation,

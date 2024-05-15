@@ -7,7 +7,7 @@ get_smooth_profiles <- function(profile_dir_smooth, settings){
   ### smooth
   
   for (iDir in 1:number_of_directories_smooth){
-    sampleNames <- list.files(path = profile_dir_smooth[iDir], pattern="\\.csv") # 取出该目录下的所有csv文件
+    sampleNames <- list.files(path = profile_dir_smooth[iDir], pattern="\\.csv") 
     
     #the samples with "smooth" in the title
     smoothed_sample_indices <- grep(pattern = "smooth", sampleNames) # Fetch the smooth file in this directory
@@ -25,17 +25,17 @@ get_smooth_profiles <- function(profile_dir_smooth, settings){
     }
   }
   
-  number_sample_with_input_and_output <- length(smooth_profiles_paths) #83
+  number_sample_with_input_and_output <- length(smooth_profiles_paths) 
   #the number of dyes 
   number_of_dyes <- settings$number_of_dyes
   #the starting scan point
-  startScan <- settings$startScan # 4000
+  startScan <- settings$startScan 
   #the number of scan points to be trained / generated
-  number_of_scanpoints <- settings$number_of_scanpoints # 5000
+  number_of_scanpoints <- settings$number_of_scanpoints 
   #the end scan point
   endScan <- startScan + number_of_scanpoints - 1 #need to minus 1 so that startScan:endScan gives number_of_scanpoints data points
   #now go through and read in files to create input and target arrays
-  smooth_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) # 83*6*5000
+  smooth_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints))
   for (iProfile in 1:number_sample_with_input_and_output){
     #loads the smooth profile
     smooth_profile <- read.csv(file = smooth_profiles_paths[iProfile], header = TRUE, stringsAsFactors = FALSE)
@@ -47,7 +47,7 @@ get_smooth_profiles <- function(profile_dir_smooth, settings){
     smooth_profiles[iProfile,,] <- t(smooth_profile[startScan:endScan,2:(number_of_dyes + 1)])
   }
   
-  #the final step is to apply the saturation threshold （饱和度阈值）
+  #the final step is to apply the saturation threshold 
   saturation <- settings$saturation 
   return(list(smooth_profiles = smooth_profiles/saturation,
               smooth_paths = smooth_profiles_paths))

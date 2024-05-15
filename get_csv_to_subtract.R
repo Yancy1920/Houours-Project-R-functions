@@ -9,7 +9,7 @@ get_csv_to_subtract <- function(profile_dir_true, profile_dir_fake,settings){
   ### true
   
   for (iDir in 1:number_of_directories_true){
-    trueNames <- list.files(path = profile_dir_true[iDir], pattern="\\.csv") # 取出该目录下的所有csv文件
+    trueNames <- list.files(path = profile_dir_true[iDir], pattern="\\.csv")
     
     #the samples with "smooth" in the title
     smoothed_sample_indices <- grep(pattern = "smooth", trueNames) # Fetch the smooth file in this directory
@@ -27,13 +27,13 @@ get_csv_to_subtract <- function(profile_dir_true, profile_dir_fake,settings){
   #the number of dyes 
   number_of_dyes <- settings$number_of_dyes
   #the starting scan point
-  startScan <- settings$startScan # 4000
+  startScan <- settings$startScan
   #the number of scan points to be trained / generated
-  number_of_scanpoints <- settings$number_of_scanpoints # 5000
+  number_of_scanpoints <- settings$number_of_scanpoints
   #the end scan point
   endScan <- startScan + number_of_scanpoints - 1 #need to minus 1 so that startScan:endScan gives number_of_scanpoints data points
   #now go through and read in files to create input and target arrays
-  true_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) # 83*6*5000
+  true_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints))
   for (iProfile in 1:number_sample_with_input_and_output){
     #loads the true profile
     true_profile <- read.csv(file = true_profiles_paths[iProfile], header = TRUE, stringsAsFactors = FALSE)
@@ -50,7 +50,7 @@ get_csv_to_subtract <- function(profile_dir_true, profile_dir_fake,settings){
   ### fake
   
   for (iDir in 1:number_of_directories_fake){
-    fakeNames <- list.files(path = profile_dir_fake[iDir], pattern="\\.csv") # 取出该目录下的所有csv文件
+    fakeNames <- list.files(path = profile_dir_fake[iDir], pattern="\\.csv") 
     
     non_smoothed_samples <- fakeNames
     #for each sample make sure a smoothed sample exists and then build up arrays of paths
@@ -61,17 +61,9 @@ get_csv_to_subtract <- function(profile_dir_true, profile_dir_fake,settings){
     }
   }
   
-  number_sample_with_input_and_output <- length(fake_profiles_paths) #65
-  # #the number of dyes 
-  # number_of_dyes <- settings$number_of_dyes
-  # #the starting scan point
-  # startScan <- settings$startScan # 4000
-  # #the number of scan points to be trained / generated
-  # number_of_scanpoints <- settings$number_of_scanpoints # 5000
-  # #the end scan point
-  # endScan <- startScan + number_of_scanpoints - 1 #need to minus 1 so that startScan:endScan gives number_of_scanpoints data points
+  number_sample_with_input_and_output <- length(fake_profiles_paths) 
   #now go through and read in files to create input and target arrays
-  fake_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints)) # 65*6*5000
+  fake_profiles <- array(0, dim = c(number_sample_with_input_and_output, number_of_dyes, number_of_scanpoints))
   for (iProfile in 1:number_sample_with_input_and_output){
     #loads the fake profile
     fake_profile <- read.csv(file = fake_profiles_paths[iProfile], header = TRUE, stringsAsFactors = FALSE)
@@ -82,7 +74,7 @@ get_csv_to_subtract <- function(profile_dir_true, profile_dir_fake,settings){
   }
   # The above steps end up with input_profiles to store smoothed data and target_profiles for non-smoothed data
   
-  #the final step is to apply the saturation threshold （饱和度阈值）
+  #the final step is to apply the saturation threshold 
   saturation <- settings$saturation 
   return(list(true_profiles = true_profiles/saturation,
               fake_profiles = fake_profiles/saturation,

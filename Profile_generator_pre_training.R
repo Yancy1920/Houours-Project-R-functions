@@ -1,10 +1,10 @@
 profile_generator_pre_training <- function(settings,
-                                           complete_model, # 由build_profile_generator得到
-                                           number_epochs, # 训练次数
-                                           save_profile_images, # 是否存储结果图像 
-                                           save_profile_csvs, # 是否存储数据结果
-                                           train_with_initial_sample_weights, # 是否改变数据样本的权值
-                                           training_data){ # 由create_generator_pretrain_training_data得到
+                                           complete_model, 
+                                           number_epochs, 
+                                           save_profile_images, 
+                                           save_profile_csvs, 
+                                           train_with_initial_sample_weights, 
+                                           training_data){
   
   #libraries
   library('tensorflow')
@@ -23,10 +23,10 @@ profile_generator_pre_training <- function(settings,
   profile_dirs <- settings$real_and_smooth_dirs
   fake_dirs <- settings$fake_dirs
   #the end scan point
-  endScan <- startScan + number_scanpoint_in_input_layer - 1 #need to minus 1 so that startScan:endScan gives number_scanpoint_in_input_layer data points
+  endScan <- startScan + number_scanpoint_in_input_layer - 1 # need to minus 1 so that startScan:endScan gives number_scanpoint_in_input_layer data points
   
   
-  number_of_profiles <- dim(training_data$input_profiles)[1] # 83
+  number_of_profiles <- dim(training_data$input_profiles)[1] 
   
   
   
@@ -43,7 +43,7 @@ profile_generator_pre_training <- function(settings,
   
   #the numbered input array to assist with sequential training 
   numbered_input <- matrix(rep(1:500, 6), ncol=500, byrow = TRUE)/500 
-  numbered_input_array <- array(NA, dim=c(number_of_profiles_to_use, 6, 500, 1)) # 83,6,500,1
+  numbered_input_array <- array(NA, dim=c(number_of_profiles_to_use, 6, 500, 1)) 
   
   for(iBatch in 1:number_of_profiles_to_use){
     numbered_input_array[iBatch, , , 1] <- numbered_input
@@ -53,6 +53,7 @@ profile_generator_pre_training <- function(settings,
   
   loss_values <- NULL
   val_loss_values <- NULL
+  
   
 #   if(train_with_initial_sample_weights){
 #     #fits the model but with the fixed random values generated upfront
